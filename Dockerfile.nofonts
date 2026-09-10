@@ -1,0 +1,40 @@
+# The "before" image: identical to Dockerfile except that the font layer is gone.
+#
+# Two things this image has to get right, and they are independent:
+#   1. the .NET runtime dependencies the wheel needs (libicu, libssl1.1)
+#   2. fonts - without them every text signature fails, because GroupDocs does not substitute a
+#      missing family and falls back to its own default, which is equally absent
+#
+# Heads-up on support: the GroupDocs documentation states that Linux support for
+# GroupDocs.Signature for Python via .NET is limited, and its Linux-ready list names only
+# comparison, watermark, metadata and merger. Treat this image as an experiment against your
+# version - the README records what it actually did here.
+
+FROM python:3.11-slim
+
+# .NET dependencies. libssl1.1 is not in bookworm, so it comes from a pinned Debian snapshot -
+# this is the approach the GroupDocs Python-in-Docker guide documents.
+ENV SNAPSHOT_DATE=20220328T000000Z
+RUN echo "deb [trusted=yes] http://snapshot.debian.org/archive/debian/${SNAPSHOT_DATE} bullseye main" \
+        > /etc/apt/sources.list.d/debian-archive.list \
+    && apt-get -o Acquire::Check-Valid-Until=false update \
+    && apt-get install -y --no-install-recommends \
+        libicu67 \
+        libssl1.1 \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+COPY requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY sign_in_docker_fonts_demo.py ./
+COPY documents ./documents
+
+# documents/ and Result/ are resolved relative to the working directory.
+# Mount a volume over /app/Result to keep the signed file, and mount a licence rather than
+# baking one in:
+#   docker run --rm -v "$PWD/Result:/app/Result" \
+#              -v "/path/to/licences:/lic:ro" -e LIC_PATH=/lic/GroupDocs.Total.lic \
+#              groupdocs-signature-fonts-python
+ENTRYPOINT ["python", "sign_in_docker_fonts_demo.py"]

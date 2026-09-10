@@ -1,0 +1,8 @@
+__pycache__/
+.verify_venv/
+Result/
+Dockerfile
+Dockerfile.nofonts
+.dockerignore
+README.md
+*.lic
